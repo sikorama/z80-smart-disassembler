@@ -172,6 +172,7 @@ if args['regions'] == None :
             # Zone complete curZoneStart-curZoneEnd
             #print(';Zone',curZoneCodeType, hx(curZoneStart),hx(curZoneEnd-curZoneStart))
             if curZoneCodeType==False:
+                symfile.write('data'+format(curZoneStart,'04x')+' '+hx(curZoneStart)+ '\n');
                 symfile.write('DisarkByteRegionStart'+hx(curZoneStart)+' '+hx(curZoneStart)+ '\n');
                 symfile.write('DisarkByteRegionEnd'+hx(curZoneStart)+' '+hx(curZoneEnd+1)+ '\n');
             curZoneStart = i
