@@ -123,9 +123,9 @@ while len(pcstack)>0:
                 print(hx(start_pc), hx(pc), 'Warning, unusual instruction:', opcode,data)
 
         if opcode=='jp' or opcode=='jr' or opcode=='rst':
-            #is it a jp(hl) ?
-            if data=='hl':
-                print(hx(start_pc), hx(pc), 'JP (HL) encoutered', opcode,data)            
+            #is it a jp(hl) jp(ix) ... ?
+            if ('hl' in data) or ('ix' in data) or ('iy' in data):
+                print(hx(start_pc), hx(pc), 'JP ('+data+') encoutered') 
                 break;
             #is there a condition?        
             if ',' in op[1]:
@@ -135,7 +135,7 @@ while len(pcstack)>0:
                 #pcstack.append(int(op[1][ii:],16))
                 pc += op[2]
             else:
-                print (hx(start_pc), hx(pc),op)                
+                #print (hx(start_pc), hx(pc),op)                
                 pc = int(op[1],16)
                 start_pc = pc
         elif opcode=='call':
