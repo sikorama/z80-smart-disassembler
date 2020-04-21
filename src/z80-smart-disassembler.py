@@ -5,6 +5,7 @@
 from z80da import disassemble
 import subprocess
 import argparse
+import string
 
 def hx( v ):
    "Converts a number to an hex string"
@@ -18,10 +19,25 @@ def addJump(adrfrom,adrto,jptype,stack,jpl):
 
 def arrayAsDB(a):
     res = "db "
+    st = ''
+    nc = 0
     for i in range(len(a)):
         if i != 0:
             res+= ','
-        res+=a[i]
+        # Check if there is some text        
+        v = int(a[i][1:],16)
+        res+=hx(v) #a[i]
+        l = v & 0xdf # Remove bit 5
+        if l>=65 and l<65+26:
+            nc+=1
+            if v&32==32:
+                st+=string.ascii_lowercase[l-65]
+            else:
+                st+=string.ascii_uppercase[l-65]
+        else:
+            st = st+'.'
+    if nc>0:
+        res += ' ;'+st
     return res
 
 
@@ -213,6 +229,7 @@ if args['use_disark']==True:
     dbl=[]
     asmfile = open(outasm,"w") 
     #print(fileContent)
+    #TODO: handle dw
     for l in fileContent:        
         ll=l.strip()        
         if ('db' in ll) and (ll.index('db')==0):
