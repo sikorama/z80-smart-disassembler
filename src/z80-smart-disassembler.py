@@ -51,11 +51,11 @@ ap.add_argument('-a', '--start-adresses', nargs="+", help='Start adresses (in he
 ap.add_argument('-s', '--symbols',  help='Additional symbol file to use for disassembling with disark.')
 ap.add_argument('-r', '--regions',  help='Region file to use for disassembling with disark.')
 ap.add_argument('-x', '--exclude-adresses',  nargs="+", help='Exclude adresses (in hex format)')
-ap.add_argument('-v', '--verbose', action='store_true', help='Increase Verbosity')
+ap.add_argument('-v', '--verbose', default=0, action='count', help='Increase Verbosity')
 ap.add_argument('-D', '--dot', action='store_true' , help='Generates a dot (graphviz) file')
 args = vars(ap.parse_args())
 
-if 'verbose' in args:
+if args['verbose']>0:
     for a in args:
         print(a, ':' , args[a])
 
@@ -74,6 +74,22 @@ comments={}
 #For generating dot graph
 jplist=[] 
 
+#def get_parents(a):       
+#    res =[]
+#    loop=True
+#    while loop==True:
+#        print(a,parent[a], res)
+#        if parent[a] == -1:
+#            loop = False
+#        elif parent [a] == a:
+#            #res.append(hx(a))
+#            loop = False
+#        else:
+#            a = parent[a]
+#            res.append(hx(a))
+#            if args['verbose']<1:
+#                loop=False
+#    return res
 
 fileName=args['input_file']
 with open(fileName, mode='rb') as file: 
@@ -113,6 +129,8 @@ while len(pcstack)>0:
         try:
             op = disassemble(mem,pc)        
             (opcode,data,sz) = op
+            if args['verbose']>2:
+                print(hx(pc),op,hx(mem[pc]))
         except Exception as e:
             print(e,pc)
             break;
@@ -120,7 +138,7 @@ while len(pcstack)>0:
         if memcode[pc]<0:
             break;
 
-        if memcode[pc]>1: # and memcode[pc]!=1:
+        if memcode[pc]>1: # and memcode[pc]!=1:            
             print(hx(start_pc), hx(pc), 'Warning: Jumping in the middle of an instruction!' )
             break;
 
@@ -131,11 +149,11 @@ while len(pcstack)>0:
         for i in range(0,op[2]):
             memcode[pc+i] = 1+i
         
-        memopcode[pc] = op
+        memopcode[pc] = op        
 
         if opcode=='ld':
             ldp=data.split(',')
-            if ldp[0]==ldp[1]:
+            if ldp[0]==ldp[1]:                
                 print(hx(start_pc), hx(pc), 'Warning, unusual instruction:', opcode,data)
 
         if opcode=='jp' or opcode=='jr' or opcode=='rst':
