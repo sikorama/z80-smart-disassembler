@@ -48,7 +48,7 @@ ap.add_argument('-O', '--org', default=0, help='Adress of the beginning of the b
 ap.add_argument('-p', '--disark-path', default='', help='Path to Disark executable')
 ap.add_argument('-d', '--use-disark', action='store_true', help='Use Disark for disassembling')
 ap.add_argument('-a', '--start-adresses', nargs="+", help='Start adresses (in hex format)')
-ap.add_argument('-s', '--symbols',  help='Symbol file to use for disassembling with disark.')
+ap.add_argument('-s', '--symbols',  help='Additional symbol file to use for disassembling with disark.')
 ap.add_argument('-r', '--regions',  help='Region file to use for disassembling with disark.')
 ap.add_argument('-x', '--exclude-adresses',  nargs="+", help='Exclude adresses (in hex format)')
 ap.add_argument('-v', '--verbose', action='store_true', help='Increase Verbosity')
@@ -177,7 +177,7 @@ if args['regions'] == None :
     curZoneCodeType=True
     curZoneStart=0
     curZoneEnd=0
-    symfilename=output_prefix+'.sym'
+    symfilename=output_prefix+'.reg'
     symfile = open(symfilename,"w") 
 
     i = 0
@@ -203,11 +203,19 @@ if args['regions'] == None :
 
     symfile.close()
 
-#TODO: additional symbols files
+
+#Additional symbols files: concatenate region file and symbol file
 if args['symbols'] != None :
     print('TODO: concatenate Symbol files')
-
-#Last zone?
+    fullsymfilename =output_prefix+'-full.sym'
+    with open(fullsymfilename, "w") as f1:    
+        with open(symfilename) as f:
+            for line in f:
+                f1.write(line) 
+        with open(args['symbols']) as f:
+            for line in f:
+                f1.write(line) 
+    symfilename = fullsymfilename
 
 outasm = output_prefix+".asm"
 # Disark
@@ -219,10 +227,7 @@ if args['use_disark']==True:
     print(res)
 
     print('Post processing result')
-    dotfile = open(output_prefix+".dot","w") 
-    # Post processing
-        
-    
+    # Post processing      
     with open(tmpfilename, mode='rt') as file: 
         fileContent = file.readlines()
     dbcount = 0
