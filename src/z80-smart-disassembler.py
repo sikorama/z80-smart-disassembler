@@ -25,7 +25,10 @@ def arrayAsDB(a):
         if i != 0:
             res+= ','
         # Check if there is some text        
-        v = int(a[i][1:],16)
+        if a[i][0]=='#':            
+            v = int(a[i][1:],16)
+        else:
+            v = int(a[i][0:])
         res+=hx(v) #a[i]
         l = v & 0xdf # Remove bit 5
         if l>=65 and l<65+26:
@@ -52,7 +55,12 @@ ap.add_argument('-s', '--symbols',  help='Additional symbol file to use for disa
 ap.add_argument('-r', '--regions',  help='Region file to use for disassembling with disark.')
 ap.add_argument('-x', '--exclude-adresses',  nargs="+", help='Exclude adresses (in hex format)')
 ap.add_argument('-v', '--verbose', default=0, action='count', help='Increase Verbosity')
-ap.add_argument('-D', '--dot', action='store_true' , help='Generates a dot (graphviz) file')
+ap.add_argument('-G', '--dot', action='store_true' , help='Generates a dot (graphviz) file')
+ap.add_argument('-c', '--check',  action='store_true', help='Reassemble and diff')
+ap.add_argument('-R', '--rasm',  default='rasm', help='Path to rasm binary')
+ap.add_argument('-u', '--undocumentedOpcodes',  action='store_false', help='Undocumented Opcodes to bytes')
+
+#ap.add_argument('-D', '--diff',  help='Path to diff tool')
 args = vars(ap.parse_args())
 
 if args['verbose']>0:
@@ -188,7 +196,6 @@ while len(pcstack)>0:
         
 
 #Generate Region file
-#TODO: concatenate symbol file
 symfilename = args['regions']
 if args['regions'] == None :
     # Symbols (for disark)
@@ -212,9 +219,15 @@ if args['regions'] == None :
             curZoneStart = i
             curZoneCodeType = t
 
+
         if t==True:
-            curZoneEnd=i+memopcode[i][2]-1
-            i+=memopcode[i][2]
+            try:
+                curZoneEnd=i+memopcode[i][2]-1
+                i+=memopcode[i][2]
+            except Exception as e:
+                print(Exception, e, t, "i==",i,memcode[i])
+                curZoneEnd=i
+                i+=1
         else:
             curZoneEnd=i
             i+=1
@@ -224,7 +237,6 @@ if args['regions'] == None :
 
 #Additional symbols files: concatenate region file and symbol file
 if args['symbols'] != None :
-    print('TODO: concatenate Symbol files')
     fullsymfilename =output_prefix+'-full.sym'
     with open(fullsymfilename, "w") as f1:    
         with open(symfilename) as f:
@@ -241,19 +253,24 @@ if args['use_disark']==True:
     tmpfilename=output_prefix+".tmp"
     path=  args['disark_path'] + "Disark"
     print('Now running disark...', path, tmpfilename, symfilename)
-    res = subprocess.run([path, args["input_file"], tmpfilename, "--genLabels", "--src8bitsValuesInHex", "--src16bitsValuesInHex", "--undocumentedOpcodesToBytes",  "--symbolFile",symfilename])
+    options = [path, args["input_file"], tmpfilename, "--genLabels", "--src8bitsValuesInHex", "--src16bitsValuesInHex", "--symbolFile",symfilename]
+    
+    if args['undocumentedOpcodes']==False:
+        options.append("--undocumentedOpcodesToBytes")    
+    res = subprocess.run(options)
     print(res)
 
     print('Post processing result')
     # Post processing      
     with open(tmpfilename, mode='rt') as file: 
-        fileContent = file.readlines()
+        dfileContent = file.readlines()
     dbcount = 0
     dbl=[]
     asmfile = open(outasm,"w") 
     #print(fileContent)
+
     #TODO: handle dw
-    for l in fileContent:        
+    for l in dfileContent:        
         ll=l.strip()        
         if ('db' in ll) and (ll.index('db')==0):
             dbl.append(ll[3:])
@@ -264,8 +281,8 @@ if args['use_disark']==True:
             if len(dbl)>0: 
                 asmfile.write(arrayAsDB(dbl)+'\n')
                 dbl=[]
-            asmfile.write(l)                
-            
+            asmfile.write(l)
+    asmfile.close()
 else:
     #Generate asm file
     print('Generating ', outasm)
@@ -274,7 +291,7 @@ else:
     i=0
     while i<len(mem):
         if memcode[i]>0:
-            asmfile.write(' ' + memopcode[i][0] + ' ' + memopcode[i][1] + '\n')        
+            asmfile.write(' ' + memopcode[i][0] + ' ' + memopcode[i][1] + '\n')
             i+=memopcode[i][2]
         else:
             #TODO: Group dbs
@@ -283,7 +300,25 @@ else:
 
     asmfile.close()
 
+if args['check']==True:    
+    rasmpath=args['rasm']
+    
+    print('- running rasm', rasmpath, outasm) 
+    res = subprocess.run([rasmpath, outasm])
+    print(res)
 
+    print('- comparing') 
+    if res.returncode ==0:
+        with open('rasmoutput.bin', mode='rb') as file: 
+            checkContent = file.read()
+        l1 = len(fileContent)
+        l2 = len(checkContent)
+        if l1!=l2:
+            print('Warning! File Length not matching ',l1,l2)
+        for i in range(l1):
+            if fileContent[i]!=checkContent[i]:
+                print(hx(i+offset) , 'Not Matching! ', hx(fileContent[i]), hx(checkContent[i]) )   
+    
 # Dot graph with all calls & jps
 if args['dot']==True:
     print("Generating dot file",output_prefix+".dot")
