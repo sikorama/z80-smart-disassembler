@@ -164,7 +164,7 @@ while len(pcstack)>0:
             if ldp[0]==ldp[1]:                
                 print(hx(start_pc), hx(pc), 'Warning, unusual instruction:', opcode,data)
 
-        if opcode=='jp' or opcode=='jr' or opcode=='rst':
+        if opcode=='jp' or opcode=='jr' or opcode=='rst' or opcode=='djnz':
             #is it a jp(hl) jp(ix) ... ?
             if ('hl' in data) or ('ix' in data) or ('iy' in data):
                 print(hx(start_pc), hx(pc), 'JP ('+data+') encoutered') 
