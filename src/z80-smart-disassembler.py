@@ -204,7 +204,11 @@ if args['regions'] == None :
     curZoneEnd=0
     symfilename=output_prefix+'.reg'
     symfile = open(symfilename,"w") 
-
+    
+    for a in args['start_adresses']:
+        symfile.write('start_'+a + ' #' + a + '\n');
+        #symfile.write('start'+format(a,'04x') + ' equ ' + hx(a) + '\n');
+    
     i = 0
     while i<len(mem):
         t = memcode[i]>0
