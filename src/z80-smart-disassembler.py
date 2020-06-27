@@ -47,7 +47,7 @@ def arrayAsDB(a):
 ap = argparse.ArgumentParser()
 ap.add_argument('-i', '--input-file', default='input.bin', help='Input Binary file')
 ap.add_argument('-o', '--output-prefix', help='Prefix used for generating output files')
-ap.add_argument('-O', '--org', default=0, help='Adress of the beginning of the bin file in RAM')
+ap.add_argument('-O', '--org', default="0", help='Adress of the beginning of the bin file in RAM')
 ap.add_argument('-p', '--disark-path', default='', help='Path to Disark executable')
 ap.add_argument('-d', '--use-disark', action='store_true', help='Use Disark for disassembling')
 ap.add_argument('-a', '--start-adresses', nargs="+", help='Start adresses (in hex format)')
@@ -104,7 +104,7 @@ with open(fileName, mode='rb') as file:
     fileContent = file.read()
 
 #Copy file content to mem (FIXME: could be musch faster)
-offset = args['org']
+offset = int(args['org'],16)
 for i in range(len(fileContent)):
     mem[i+offset] = fileContent[i]
     memcode[i+offset] = 0
@@ -164,7 +164,7 @@ while len(pcstack)>0:
             if ldp[0]==ldp[1]:                
                 print(hx(start_pc), hx(pc), 'Warning, unusual instruction:', opcode,data)
 
-        if opcode=='jp' or opcode=='jr' or opcode=='rst':
+        if opcode=='jp' or opcode=='jr' or ('rst' in opcode):
             #is it a jp(hl) jp(ix) ... ?
             if ('hl' in data) or ('ix' in data) or ('iy' in data):
                 print(hx(start_pc), hx(pc), 'JP ('+data+') encoutered') 
@@ -235,6 +235,13 @@ if args['regions'] == None :
         else:
             curZoneEnd=i
             i+=1
+
+    #Last region
+    print(curZoneCodeType,curZoneStart)
+    if curZoneCodeType==False:
+        symfile.write('DisarkByteRegionStartLast'+' '+hx(curZoneStart)+ '\n');
+        symfile.write('DisarkByteRegionEndLast'+' '+hx(curZoneEnd)+ '\n');
+        
 
     symfile.close()
 
