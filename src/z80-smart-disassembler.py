@@ -2,6 +2,9 @@
 # by Stephane Sikora
 # with some code from https://github.com/deadsy/py_z80/blob/master/z80da.py
 
+#TODO/FIXME:
+# Using external symbol files for dot graph
+
 from z80da import disassemble
 import subprocess
 import argparse
@@ -11,10 +14,12 @@ def hx( v ):
    "Converts a number to an hex string"
    return '#'+format(v, '02x')   
 
-def addJump(adrfrom,adrto,jptype,stack,jpl):
+def addJump(adrfrom,adrto,opcode,jptype,stack,jpl):
     #print(stack,jpl)
-    stack.append(adrto)
-    jpl.append([adrfrom,adrto,jptype])
+    if stack!=None:
+        stack.append(adrto)
+    if jpl!=None:
+        jpl[adrfrom] = [adrfrom,adrto,jptype,opcode]
     #print(stack,jpl)
 
 def arrayAsDB(a):
@@ -77,10 +82,17 @@ mem= [0] * 65536
 # Exceptions: memcode[pc] = -1. will be ignored
 memcode= [-1] * 65536
 memopcode= {}
-abels={}
+# For storing going from an opcode to the next one
+# (for generating graph)
+nextopcode= {}
+
 comments={}
 #For generating dot graph
-jplist=[] 
+jplist={} #[] 
+
+def storeNextPC(pc,nextpc):
+    nextopaddr = pc + nextpc
+    nextopcode[pc] = nextopaddr
 
 #def get_parents(a):       
 #    res =[]
@@ -113,6 +125,7 @@ for i in range(len(fileContent)):
 if args['exclude_adresses'] != None:
     for a in args['exclude_adresses']:
         memcode[int(a,16)] = -1        
+
 
 #Bytes distribution
 #dist= [0] * 256
@@ -173,25 +186,34 @@ while len(pcstack)>0:
             if ',' in op[1]:
                 ii = op[1].index(',')+1
                 #print (hx(start_pc), hx(pc),opcode,data,sz,op[1][ii:], hx(int(op[1][ii:],16)))
-                addJump(pc, int(op[1][ii:],16),opcode,pcstack,jplist)
+                addJump(pc, int(op[1][ii:],16),opcode,"jump cond", pcstack,jplist)
                 #pcstack.append(int(op[1][ii:],16))
+                storeNextPC(pc,op[2])
                 pc += op[2]
             else:
-                #print (hx(start_pc), hx(pc),op)                
+                #print (hx(start_pc), hx(pc),op)                                
+                addJump(pc, int(op[1],16),opcode,'jump',None,jplist)
                 pc = int(op[1],16)
                 start_pc = pc
-        elif opcode=='call' or opcode=='djnz':
+
+        elif opcode=='call' :
             if ',' in op[1]:
                 ii = op[1].index(',')+1
+                jpl='call cond'
             else:
                 ii = 0
-            #print (hx(start_pc), hx(pc),opcode,data,sz,op[1][ii:], hx(int(op[1][ii:],16)))
-            addJump(pc, int(op[1][ii:],16),opcode,pcstack,jplist)
-            #pcstack.append(int(op[1][ii:],16))
+                jpl='call'
+            addJump(pc, int(op[1][ii:],16),opcode,jpl,pcstack,jplist)
+            storeNextPC(pc,op[2])
+            pc += op[2]            
+        elif  opcode=='djnz':
+            addJump(pc, int(op[1][0],16),opcode,'jump cond',pcstack,jplist)
+            storeNextPC(pc,op[2])
             pc += op[2]
         elif opcode=='ret' and data=='':
             break
         else:
+            storeNextPC(pc,op[2])
             pc += op[2]
         
 
@@ -237,7 +259,6 @@ if args['regions'] == None :
             i+=1
 
     #Last region
-    print(curZoneCodeType,curZoneStart)
     if curZoneCodeType==False:
         symfile.write('DisarkByteRegionStartLast'+' '+hx(curZoneStart)+ '\n');
         symfile.write('DisarkByteRegionEndLast'+' '+hx(curZoneEnd)+ '\n');
@@ -336,9 +357,48 @@ if args['dot']==True:
     dotfile = open(output_prefix+".dot","w") 
     dotfile.write('digraph G {\n')
     #print(jplist)
-    for i in jplist:
+    nodeAttributes = {}
+    #Touis les sauts
+    for j in jplist:
+        i = jplist[j]
         options='[label="'+i[2]+'"]'
-        dotfile.write('lab'+format(i[0],'02x')+' -> '+'lab'+format(i[1],'02x')+' '+options+';\n')
+        nodeAttributes[i[0]]=1
+        nodeAttributes[i[1]]=1
+        dotfile.write('lab'+format(i[0],'04x')+' -> '+'lab'+format(i[1],'04x')+' '+options+';\n')
+    k0=None
+    k1=0
+        
+    # Tout ce qui n'est pas saut
+    for k in nextopcode:
+        nxt = nextopcode[k]        
+        if k0==None:
+            k0=k
+        else:
+            if k in jplist:
+                #adrfrom => [adrfrom,adrto,jptype,opcode]
+                jpt = jplist[k][2]
+                if ('cond' in jpt) or ('call' in jpt):  
+                    n1 = 'lab'+format(k0,'04x')
+                    n2 = 'lab'+format(k,'04x')
+                    dotfile.write(n1+' -> '+ n2 +' [style=dotted;] ;\n')
+                    nodeAttributes[k0]=1
+                    nodeAttributes[k]=1
+                    k0=k
+                else:                    
+                    k0=None                
+            else:
+                k1=k
+                if nxt in nextopcode:
+                    options=''
+                else:                    
+                    dotfile.write('lab'+format(k0,'04x')+' -> '+'lab'+format(k1,'02x')+'[style=dotted] ;\n')
+                    nodeAttributes[k0]=1
+                    nodeAttributes[k1]=1                                        
+                    k0=None
+
+    for k in nodeAttributes:
+        dotfile.write('lab'+format(k,'04x') + ' ['+'label="#'+format(k,'04x')+'"' +']'+';\n')
+
     dotfile.write('}\n')
     dotfile.close()
 
