@@ -12,7 +12,7 @@ import string
 
 def hx( v ):
    "Converts a number to an hex string"
-   return '#'+format(v, '02x')   
+   return '#'+format(v, '02x')
 
 def addJump(adrfrom,adrto,opcode,jptype,stack,jpl):
     #print(stack,jpl)
@@ -29,8 +29,8 @@ def arrayAsDB(a):
     for i in range(len(a)):
         if i != 0:
             res+= ','
-        # Check if there is some text        
-        if a[i][0]=='#':            
+        # Check if there is some text
+        if a[i][0]=='#':
             v = int(a[i][1:],16)
         else:
             v = int(a[i][0:])
@@ -82,37 +82,20 @@ mem= [0] * 65536
 # Exceptions: memcode[pc] = -1. will be ignored
 memcode= [-1] * 65536
 memopcode= {}
-# For storing going from an opcode to the next one
-# (for generating graph)
-nextopcode= {}
 
 comments={}
-#For generating dot graph
-jplist={} #[] 
+
+#Jump list for generating dot graph
+jplist={} #[]
+#Consecutive opcodes for generating dot graph
+nextopcode= {}
 
 def storeNextPC(pc,nextpc):
     nextopaddr = pc + nextpc
     nextopcode[pc] = nextopaddr
 
-#def get_parents(a):       
-#    res =[]
-#    loop=True
-#    while loop==True:
-#        print(a,parent[a], res)
-#        if parent[a] == -1:
-#            loop = False
-#        elif parent [a] == a:
-#            #res.append(hx(a))
-#            loop = False
-#        else:
-#            a = parent[a]
-#            res.append(hx(a))
-#            if args['verbose']<1:
-#                loop=False
-#    return res
-
 fileName=args['input_file']
-with open(fileName, mode='rb') as file: 
+with open(fileName, mode='rb') as file:
     fileContent = file.read()
 
 #Copy file content to mem (FIXME: could be musch faster)
@@ -124,8 +107,7 @@ for i in range(len(fileContent)):
 #Exclude
 if args['exclude_adresses'] != None:
     for a in args['exclude_adresses']:
-        memcode[int(a,16)] = -1        
-
+        memcode[int(a,16)] = -1
 
 #Bytes distribution
 #dist= [0] * 256
@@ -144,11 +126,11 @@ if 'start_adresses' in args:
 
 #Start parsing
 while len(pcstack)>0:
-    start_pc = pc =pcstack.pop(0)    
+    start_pc = pc =pcstack.pop(0)
     while True:
         # decoder l'instruction en PC de facon simple
         try:
-            op = disassemble(mem,pc)        
+            op = disassemble(mem,pc)
             (opcode,data,sz) = op
             if args['verbose']>2:
                 print(hx(pc),op,hx(mem[pc]))
@@ -159,30 +141,30 @@ while len(pcstack)>0:
         if memcode[pc]<0:
             break;
 
-        if memcode[pc]>1: # and memcode[pc]!=1:            
+        if memcode[pc]>1: # and memcode[pc]!=1:
             print(hx(start_pc), hx(pc), 'Warning: Jumping in the middle of an instruction!' )
             break;
 
         if memcode[pc]>0:
             break;
-                
+
         #Mark as code (>0)
         for i in range(0,op[2]):
             memcode[pc+i] = 1+i
-        
-        memopcode[pc] = op        
+
+        memopcode[pc] = op
 
         if opcode=='ld':
             ldp=data.split(',')
-            if ldp[0]==ldp[1]:                
+            if ldp[0]==ldp[1]:
                 print(hx(start_pc), hx(pc), 'Warning, unusual instruction:', opcode,data)
 
         if opcode=='jp' or opcode=='jr' or ('rst' in opcode):
             #is it a jp(hl) jp(ix) ... ?
             if ('hl' in data) or ('ix' in data) or ('iy' in data):
-                print(hx(start_pc), hx(pc), 'JP ('+data+') encoutered') 
+                print(hx(start_pc), hx(pc), 'JP ('+data+') encoutered')
                 break;
-            #is there a condition?        
+            #is there a condition?
             if ',' in op[1]:
                 ii = op[1].index(',')+1
                 #print (hx(start_pc), hx(pc),opcode,data,sz,op[1][ii:], hx(int(op[1][ii:],16)))
@@ -191,7 +173,7 @@ while len(pcstack)>0:
                 storeNextPC(pc,op[2])
                 pc += op[2]
             else:
-                #print (hx(start_pc), hx(pc),op)                                
+                #print (hx(start_pc), hx(pc),op)
                 addJump(pc, int(op[1],16),opcode,'jump',None,jplist)
                 pc = int(op[1],16)
                 start_pc = pc
@@ -205,9 +187,9 @@ while len(pcstack)>0:
                 jpl='call'
             addJump(pc, int(op[1][ii:],16),opcode,jpl,pcstack,jplist)
             storeNextPC(pc,op[2])
-            pc += op[2]            
+            pc += op[2]
         elif  opcode=='djnz':
-            addJump(pc, int(op[1][0],16),opcode,'jump cond',pcstack,jplist)
+            addJump(pc, int(op[1],16),opcode,'jump cond',pcstack,jplist)
             storeNextPC(pc,op[2])
             pc += op[2]
         elif opcode=='ret' and data=='':
@@ -215,7 +197,7 @@ while len(pcstack)>0:
         else:
             storeNextPC(pc,op[2])
             pc += op[2]
-        
+
 
 #Generate Region file
 symfilename = args['regions']
@@ -225,12 +207,12 @@ if args['regions'] == None :
     curZoneStart=0
     curZoneEnd=0
     symfilename=output_prefix+'.reg'
-    symfile = open(symfilename,"w") 
-    
+    symfile = open(symfilename,"w")
+
     for a in args['start_adresses']:
         symfile.write('start_'+a + ' #' + a + '\n');
         #symfile.write('start'+format(a,'04x') + ' equ ' + hx(a) + '\n');
-    
+
     i = 0
     while i<len(mem):
         t = memcode[i]>0
@@ -262,7 +244,7 @@ if args['regions'] == None :
     if curZoneCodeType==False:
         symfile.write('DisarkByteRegionStartLast'+' '+hx(curZoneStart)+ '\n');
         symfile.write('DisarkByteRegionEndLast'+' '+hx(curZoneEnd)+ '\n');
-        
+
 
     symfile.close()
 
@@ -270,13 +252,13 @@ if args['regions'] == None :
 #Additional symbols files: concatenate region file and symbol file
 if args['symbols'] != None :
     fullsymfilename =output_prefix+'-full.sym'
-    with open(fullsymfilename, "w") as f1:    
+    with open(fullsymfilename, "w") as f1:
         with open(symfilename) as f:
             for line in f:
-                f1.write(line) 
+                f1.write(line)
         with open(args['symbols']) as f:
             for line in f:
-                f1.write(line) 
+                f1.write(line)
     symfilename = fullsymfilename
 
 outasm = output_prefix+".asm"
@@ -286,31 +268,31 @@ if args['use_disark']==True:
     path=  args['disark_path'] + "Disark"
     print('Now running disark...', path, tmpfilename, symfilename)
     options = [path, args["input_file"], tmpfilename, "--genLabels", "--src8bitsValuesInHex", "--src16bitsValuesInHex", "--symbolFile",symfilename]
-    
+
     if args['undocumentedOpcodes']==False:
-        options.append("--undocumentedOpcodesToBytes")    
+        options.append("--undocumentedOpcodesToBytes")
     res = subprocess.run(options)
     print(res)
 
     print('Post processing result')
-    # Post processing      
-    with open(tmpfilename, mode='rt') as file: 
+    # Post processing
+    with open(tmpfilename, mode='rt') as file:
         dfileContent = file.readlines()
     dbcount = 0
     dbl=[]
-    asmfile = open(outasm,"w") 
+    asmfile = open(outasm,"w")
     #print(fileContent)
 
     #TODO: handle dw
-    for l in dfileContent:        
-        ll=l.strip()        
+    for l in dfileContent:
+        ll=l.strip()
         if ('db' in ll) and (ll.index('db')==0):
             dbl.append(ll[3:])
-            if len(dbl)==8: 
+            if len(dbl)==8:
                 asmfile.write(arrayAsDB(dbl)+'\n')
                 dbl=[]
         else:
-            if len(dbl)>0: 
+            if len(dbl)>0:
                 asmfile.write(arrayAsDB(dbl)+'\n')
                 dbl=[]
             asmfile.write(l)
@@ -319,7 +301,7 @@ else:
     #Generate asm file
     print('Generating ', outasm)
     print("It's better to use disark with -d option")
-    asmfile = open(outasm,"w") 
+    asmfile = open(outasm,"w")
     i=0
     while i<len(mem):
         if memcode[i]>0:
@@ -332,16 +314,16 @@ else:
 
     asmfile.close()
 
-if args['check']==True:    
+if args['check']==True:
     rasmpath=args['rasm']
-    
-    print('- running rasm', rasmpath, outasm) 
+
+    print('- running rasm', rasmpath, outasm)
     res = subprocess.run([rasmpath, outasm])
     print(res)
 
-    print('- comparing') 
+    print('- comparing')
     if res.returncode ==0:
-        with open('rasmoutput.bin', mode='rb') as file: 
+        with open('rasmoutput.bin', mode='rb') as file:
             checkContent = file.read()
         l1 = len(fileContent)
         l2 = len(checkContent)
@@ -349,12 +331,12 @@ if args['check']==True:
             print('Warning! File Length not matching ',l1,l2)
         for i in range(l1):
             if fileContent[i]!=checkContent[i]:
-                print(hx(i+offset) , 'Not Matching! ', hx(fileContent[i]), hx(checkContent[i]) )   
-    
+                print(hx(i+offset) , 'Not Matching! ', hx(fileContent[i]), hx(checkContent[i]) )
+
 # Dot graph with all calls & jps
 if args['dot']==True:
-    print("Generating dot file",output_prefix+".dot")
-    dotfile = open(output_prefix+".dot","w") 
+    print("Generating graphviz/dot file",output_prefix+".dot")
+    dotfile = open(output_prefix+".dot","w")
     dotfile.write('digraph G {\n')
     #print(jplist)
     nodeAttributes = {}
@@ -365,35 +347,43 @@ if args['dot']==True:
         nodeAttributes[i[0]]=1
         nodeAttributes[i[1]]=1
         dotfile.write('lab'+format(i[0],'04x')+' -> '+'lab'+format(i[1],'04x')+' '+options+';\n')
+
+    # Bloc 1st and last address
     k0=None
     k1=0
-        
-    # Tout ce qui n'est pas saut
+
+    # Consecutive instructions
     for k in nextopcode:
-        nxt = nextopcode[k]        
+        nxt = nextopcode[k]
+        #1st opcode of a series of instructions
         if k0==None:
             k0=k
+            k1=k
         else:
+            #Is there a jump at k ?
             if k in jplist:
+                print(k,jplist[k])
                 #adrfrom => [adrfrom,adrto,jptype,opcode]
                 jpt = jplist[k][2]
-                if ('cond' in jpt) or ('call' in jpt):  
+                #Is it a conditional jump or a call?
+                if ('cond' in jpt) or ('call' in jpt):
                     n1 = 'lab'+format(k0,'04x')
                     n2 = 'lab'+format(k,'04x')
                     dotfile.write(n1+' -> '+ n2 +' [style=dotted;] ;\n')
                     nodeAttributes[k0]=1
                     nodeAttributes[k]=1
                     k0=k
-                else:                    
-                    k0=None                
+                    k1=k
+                else:
+                    k0=None
             else:
                 k1=k
                 if nxt in nextopcode:
                     options=''
-                else:                    
+                else:
                     dotfile.write('lab'+format(k0,'04x')+' -> '+'lab'+format(k1,'02x')+'[style=dotted] ;\n')
                     nodeAttributes[k0]=1
-                    nodeAttributes[k1]=1                                        
+                    nodeAttributes[k1]=1
                     k0=None
 
     for k in nodeAttributes:
@@ -402,4 +392,4 @@ if args['dot']==True:
     dotfile.write('}\n')
     dotfile.close()
 
-#python3.8.exe .\z80-smart-disassembler.py -a 5000 5003 5006 5009 5018 501e 5027 -i .\gng1985.BIN  -x b1 b941 5112 5269 -v -d -D   
+#python3.8.exe .\z80-smart-disassembler.py -a 5000 5003 5006 5009 5018 501e 5027 -i .\gng1985.BIN  -x b1 b941 5112 5269 -v -d -D
