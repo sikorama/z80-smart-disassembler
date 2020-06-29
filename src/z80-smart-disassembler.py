@@ -10,6 +10,26 @@ import subprocess
 import argparse
 import string
 
+#-- Globals
+
+# Memory = 64Kb
+mem= [0] * 65536
+# Code areas
+# Exceptions: memcode[pc] = -1. will be ignored
+memcode= [-1] * 65536
+memopcode= {}
+
+comments={}
+
+#Data for generating dot graph
+#Jump list
+jplist={} #[]
+#Jump destination list
+jptolist={}
+#Consecutive opcodes for generating dot graph
+nextopcode= {} #[-1] * 65536
+
+
 def hx( v ):
    "Converts a number to an hex string"
    return '#'+format(v, '02x')
@@ -20,6 +40,7 @@ def addJump(adrfrom,adrto,opcode,jptype,stack,jpl):
         stack.append(adrto)
     if jpl!=None:
         jpl[adrfrom] = [adrfrom,adrto,jptype,opcode]
+    jptolist[adrto] = 1
     #print(stack,jpl)
 
 def arrayAsDB(a):
@@ -75,20 +96,6 @@ if args['verbose']>0:
 output_prefix=args['input_file']
 if args['output_prefix']!=None:
     output_prefix=args['output_prefix']
-
-# Memory = 64Kb
-mem= [0] * 65536
-# Code areas
-# Exceptions: memcode[pc] = -1. will be ignored
-memcode= [-1] * 65536
-memopcode= {}
-
-comments={}
-
-#Jump list for generating dot graph
-jplist={} #[]
-#Consecutive opcodes for generating dot graph
-nextopcode= {}
 
 def storeNextPC(pc,nextpc):
     nextopaddr = pc + nextpc
@@ -193,8 +200,10 @@ while len(pcstack)>0:
             storeNextPC(pc,op[2])
             pc += op[2]
         elif opcode=='ret' and data=='':
+            print('RET=> on arrete' , opcode,data,pc,op[2], pcstack)
             break
         else:
+            #print(opcode,data)
             storeNextPC(pc,op[2])
             pc += op[2]
 
@@ -352,8 +361,9 @@ if args['dot']==True:
     k0=None
     k1=0
 
+    #print(sorted(list(nextopcode.keys())))
     # Consecutive instructions
-    for k in nextopcode:
+    for k in sorted(list(nextopcode.keys())):
         nxt = nextopcode[k]
         #1st opcode of a series of instructions
         if k0==None:
@@ -361,8 +371,7 @@ if args['dot']==True:
             k1=k
         else:
             #Is there a jump at k ?
-            if k in jplist:
-                print(k,jplist[k])
+            if k in jplist:                
                 #adrfrom => [adrfrom,adrto,jptype,opcode]
                 jpt = jplist[k][2]
                 #Is it a conditional jump or a call?
@@ -377,14 +386,26 @@ if args['dot']==True:
                 else:
                     k0=None
             else:
-                k1=k
-                if nxt in nextopcode:
-                    options=''
-                else:
-                    dotfile.write('lab'+format(k0,'04x')+' -> '+'lab'+format(k1,'02x')+'[style=dotted] ;\n')
+                #Did we jump here from somewhere?
+                if k in jptolist:
+                    n1 = 'lab'+format(k0,'04x')
+                    n2 = 'lab'+format(k,'04x')
+                    dotfile.write(n1+' -> '+ n2 +' [style=dotted;] ;\n')
                     nodeAttributes[k0]=1
-                    nodeAttributes[k1]=1
-                    k0=None
+                    nodeAttributes[k]=1
+                    k0=k
+                    k1=k
+                else:
+                    k1=nxt
+                    if nxt in nextopcode:
+                        #print(k,nxt, memopcode[k]);
+                        options=''
+                    else:
+                        print(hx(k),hx(nxt), memopcode[k],memopcode[nxt]);
+                        dotfile.write('lab'+format(k0,'04x')+' -> '+'lab'+format(k1,'02x')+'[style=dotted] ;\n')
+                        nodeAttributes[k0]=1
+                        nodeAttributes[k1]=1
+                        k0=None
 
     for k in nodeAttributes:
         dotfile.write('lab'+format(k,'04x') + ' ['+'label="#'+format(k,'04x')+'"' +']'+';\n')
