@@ -6,6 +6,7 @@
 # Using external symbol files for dot graph
 
 from z80da import disassemble
+from z80cpc import checkFirmwareVector
 import subprocess
 import argparse
 import string
@@ -90,6 +91,7 @@ ap.add_argument('-u', '--undocumentedOpcodes',  action='store_false', help='Undo
 args = vars(ap.parse_args())
 
 if args['verbose']>0:
+    print('Parameters:')
     for a in args:
         print(a, ':' , args[a])
 
@@ -105,7 +107,7 @@ fileName=args['input_file']
 with open(fileName, mode='rb') as file:
     fileContent = file.read()
 
-#Copy file content to mem (FIXME: could be musch faster)
+#Copy file content to mem (FIXME: could be much faster)
 offset = int(args['org'],16)
 for i in range(len(fileContent)):
     mem[i+offset] = fileContent[i]
@@ -200,7 +202,7 @@ while len(pcstack)>0:
             storeNextPC(pc,op[2])
             pc += op[2]
         elif opcode=='ret' and data=='':
-            print('RET=> on arrete' , opcode,data,pc,op[2], pcstack)
+            #print('RET=> on arrete' , opcode,data,pc,op[2], pcstack)
             break
         else:
             #print(opcode,data)
@@ -276,14 +278,15 @@ if args['use_disark']==True:
     tmpfilename=output_prefix+".tmp"
     path=  args['disark_path'] + "Disark"
     print('Now running disark...', path, tmpfilename, symfilename)
-    options = [path, args["input_file"], tmpfilename, "--genLabels", "--src8bitsValuesInHex", "--src16bitsValuesInHex", "--symbolFile",symfilename]
-
+    options = [path, args["input_file"], tmpfilename, "--loadAddress", str(offset) , "--genLabels", "--src8bitsValuesInHex", "--src16bitsValuesInHex", "--symbolFile",symfilename]
     if args['undocumentedOpcodes']==False:
         options.append("--undocumentedOpcodesToBytes")
+
+    print(options)
     res = subprocess.run(options)
     print(res)
 
-    print('Post processing result')
+    print('Post processing...')
     # Post processing
     with open(tmpfilename, mode='rt') as file:
         dfileContent = file.readlines()
@@ -295,16 +298,32 @@ if args['use_disark']==True:
     #TODO: handle dw
     for l in dfileContent:
         ll=l.strip()
+        # starts by a label?
+        if ('start' in ll and ll.index('start')==0) or ('data' in ll and ll.index('data')==0) or ('lab' in ll and ll.index('lab')==0):
+            if len(dbl)>0:
+                asmfile.write('  '+arrayAsDB(dbl)+'\n')
+                dbl=[]
+            spl = ll.split(' ')
+            asmfile.write(spl[0]+':\n')
+            ll = ll[len(spl[0])+1:]
+
         if ('db' in ll) and (ll.index('db')==0):
             dbl.append(ll[3:])
             if len(dbl)==8:
-                asmfile.write(arrayAsDB(dbl)+'\n')
+                asmfile.write('  '+arrayAsDB(dbl)+'\n')
                 dbl=[]
         else:
             if len(dbl)>0:
-                asmfile.write(arrayAsDB(dbl)+'\n')
+                asmfile.write('  '+arrayAsDB(dbl)+'\n')
                 dbl=[]
-            asmfile.write(l)
+            # Add comments
+            comment=''
+            comment = checkFirmwareVector(ll)
+            if comment is False:
+                comment=''
+            else:
+                comment=' ; Firmware: '+comment
+            asmfile.write('  '+ll+comment + '\n')
     asmfile.close()
 else:
     #Generate asm file
@@ -371,7 +390,7 @@ if args['dot']==True:
             k1=k
         else:
             #Is there a jump at k ?
-            if k in jplist:                
+            if k in jplist:
                 #adrfrom => [adrfrom,adrto,jptype,opcode]
                 jpt = jplist[k][2]
                 #Is it a conditional jump or a call?
