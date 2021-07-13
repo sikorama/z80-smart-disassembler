@@ -1,7 +1,7 @@
 # Z80 Smart Disassembler
 # by Stephane Sikora
 # with some code from https://github.com/deadsy/py_z80/blob/master/z80da.py
-
+# Disark Documentaiton: http://julien-nevo.com/disark/
 #TODO/FIXME:
 # Using external symbol files for dot graph
 
@@ -80,7 +80,8 @@ ap.add_argument('-d', '--use-disark', action='store_true', help='Use Disark for 
 ap.add_argument('-a', '--start-adresses', nargs="+", help='Start adresses (in hex format)')
 ap.add_argument('-s', '--symbols',  help='Additional symbol file to use for disassembling with disark.')
 ap.add_argument('-r', '--regions',  help='Region file to use for disassembling with disark.')
-ap.add_argument('-x', '--exclude-adresses',  nargs="+", help='Exclude adresses (in hex format)')
+ap.add_argument('-x', '--exclude-adresses',  nargs="+", help='Exclude adresses (in hex format) - code won\'t be disassembled')
+ap.add_argument('-z', '--zero',  nargs="+", help='Region to fill with zeroes. (addr1-addr2 or addr1+nbytes, in hexadecimal)')
 ap.add_argument('-v', '--verbose', default=0, action='count', help='Increase Verbosity')
 ap.add_argument('-G', '--dot', action='store_true' , help='Generates a dot (graphviz) file')
 ap.add_argument('-c', '--check',  action='store_true', help='Reassemble and diff')
@@ -112,6 +113,33 @@ offset = int(args['org'],16)
 for i in range(len(fileContent)):
     mem[i+offset] = fileContent[i]
     memcode[i+offset] = 0
+
+if args['zero'] != None :
+    #Fill with zeroes
+    for a in args['zero']:
+        ar = False
+        print (a)
+        if '-' in a:
+            ar = a.split('-')
+            ar[0] = int(ar[0],16)
+            ar[1] = int(ar[1],16)
+        elif '+' in a:
+            ar = a.split('+')
+            print(ar)
+            ar[0] = int(ar[0],16)
+            ar[1] = ar[0]+int(ar[1],16)
+        else:
+            print('Error: Bad region definition', a)
+        if ar is not False:
+            print('Filling with 0: ', ar[0],ar[1])
+            for i in range(ar[0],ar[1]):
+                mem[i]=0
+    #Now save binary file
+    fileName+='.tmp'
+    with open(fileName, mode='wb') as file:
+        # i+offset ... len(fileContent)
+        ab = bytearray(mem[offset:offset+len(fileContent)])
+        file.write(ab)
 
 #Exclude
 if args['exclude_adresses'] != None:
@@ -221,7 +249,7 @@ if args['regions'] == None :
     symfile = open(symfilename,"w")
 
     for a in args['start_adresses']:
-        symfile.write('start_'+a + ' #' + a + '\n');
+        symfile.write('start_'+a.upper() + ' #' + a + '\n');
         #symfile.write('start'+format(a,'04x') + ' equ ' + hx(a) + '\n');
 
     i = 0
@@ -232,7 +260,7 @@ if args['regions'] == None :
             # Zone complete curZoneStart-curZoneEnd
             #print(';Zone',curZoneCodeType, hx(curZoneStart),hx(curZoneEnd-curZoneStart))
             if curZoneCodeType==False:
-                symfile.write('data'+format(curZoneStart,'04x')+' '+hx(curZoneStart)+ '\n');
+                symfile.write('data'+format(curZoneStart,'04X')+' '+hx(curZoneStart)+ '\n');
                 symfile.write('DisarkByteRegionStart'+hx(curZoneStart)+' '+hx(curZoneStart)+ '\n');
                 symfile.write('DisarkByteRegionEnd'+hx(curZoneStart)+' '+hx(curZoneEnd+1)+ '\n');
             curZoneStart = i
@@ -278,7 +306,7 @@ if args['use_disark']==True:
     tmpfilename=output_prefix+".tmp"
     path=  args['disark_path'] + "Disark"
     print('Now running disark...', path, tmpfilename, symfilename)
-    options = [path, args["input_file"], tmpfilename, "--loadAddress", str(offset) , "--genLabels", "--src8bitsValuesInHex", "--src16bitsValuesInHex", "--symbolFile",symfilename]
+    options = [path, fileName, tmpfilename, "--loadAddress", str(offset) , "--genLabels", "--src8bitsValuesInHex", "--src16bitsValuesInHex", "--symbolFile",symfilename]
     if args['undocumentedOpcodes']==False:
         options.append("--undocumentedOpcodesToBytes")
 
@@ -318,11 +346,12 @@ if args['use_disark']==True:
                 dbl=[]
             # Add comments
             comment=''
-            comment = checkFirmwareVector(ll)
-            if comment is False:
-                comment=''
-            else:
-                comment=' ; Firmware: '+comment
+            if 'call' in ll:
+                comment = checkFirmwareVector(ll)
+                if comment is False:
+                    comment=''
+                else:
+                    comment=' ; Call to firmware: '+comment
             asmfile.write('  '+ll+comment + '\n')
     asmfile.close()
 else:
